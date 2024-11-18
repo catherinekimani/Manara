@@ -101,7 +101,7 @@ class Trip(models.Model):
     route = models.ForeignKey(Route, on_delete=models.CASCADE)
     status = models.CharField(max_length=20, choices=TripStatus.choices, default=TripStatus.SCHEDULED)
     scheduled_time = models.DateTimeField()
-    estimated_arrival_time = models.DateTimeField()
+    estimated_arrival_time = models.DateTimeField(null=True, blank=True)
     actual_arrival_time = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

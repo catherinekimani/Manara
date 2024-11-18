@@ -1,5 +1,6 @@
 # Django imports
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 
 # Django REST framework imports
 from rest_framework import serializers
@@ -147,16 +148,41 @@ class RouteSerializer(serializers.ModelSerializer):
         return route
 
 class TripSerializer(serializers.ModelSerializer):
-    route = RouteSerializer()
-
     class Meta:
         model = Trip
-        fields = ['id', 'route', 'status', 'scheduled_time', 'estimated_arrival_time', 'actual_arrival_time']
+        fields = ['route', 'status', 'scheduled_time', 'estimated_arrival_time', 'actual_arrival_time']
 
-    def create(self, validated_data):
-        route_data = validated_data.pop('route')
+    def validate(self, data):
+        status = data.get('status')
+        scheduled_time = data.get('scheduled_time')
+        estimated_time = data.get('estimated_arrival_time')
+        actual_time = data.get('actual_arrival_time')
+        now = timezone.now()
 
-        route = RouteSerializer().create(route_data)
+        if status == 'SCHEDULED':
+            if scheduled_time and scheduled_time < now:
+                raise serializers.ValidationError("Scheduled time must be in the future")
+            if actual_time:
+                raise serializers.ValidationError("Actual arrival time should not be set for scheduled trips")
+                
+        elif status == 'ONGOING':
+            if scheduled_time and scheduled_time > now:
+                raise serializers.ValidationError("Scheduled time must be in the past for ongoing trips")
+            if estimated_time and estimated_time < now:
+                raise serializers.ValidationError("Estimated arrival time must be in the future for ongoing trips")
+            if actual_time:
+                raise serializers.ValidationError("Actual arrival time should not be set for ongoing trips")
 
-        trip = Trip.objects.create(route=route, **validated_data)
-        return trip
+        elif status == 'COMPLETED':
+            if not actual_time:
+                raise serializers.ValidationError("Actual arrival time is required for completed trips")
+            if actual_time > now:
+                raise serializers.ValidationError("Actual arrival time must be in the past for completed trips")
+            if scheduled_time and scheduled_time > actual_time:
+                raise serializers.ValidationError("Scheduled time must be before actual arrival time")
+
+        elif status == 'CANCELLED':
+            if actual_time:
+                raise serializers.ValidationError("Actual arrival time should not be set for cancelled trips")
+
+        return data
